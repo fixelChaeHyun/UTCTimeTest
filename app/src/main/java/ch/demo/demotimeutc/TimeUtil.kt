@@ -6,9 +6,12 @@ import java.util.*
 
 object TimeUtil {
     val TAG = this.javaClass.name
+    val COMMON_DATE_FORMAT = "yyyy-MM-dd  HH:mm:ss  E  [z Z]"
 
+    /** SimpleDateFormat 을 사용하여 Date 포맷 변환할 때,
+     * 기본 TimeZone 을 UTC 로 설정 해준다. */
     fun Calendar.toDateFormat(
-        format: String = "yyyy-MM-dd HH:mm:ss E (z Z)",
+        format: String = COMMON_DATE_FORMAT,
         timeZone: TimeZone = TimeZone.getTimeZone("UTC")
     ): String {
         try {
@@ -28,22 +31,41 @@ object TimeUtil {
      *              "ko" -> 한국어
      *              else -> 영어
      * */
-    fun convertTime(epoch: Long, offsetHour: Int, lang: String = "en"): Calendar {
-        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    fun convertTime(epoch: Long, offsetHour: Float, lang: String = "en"): Calendar {
+        Log.v(TAG, " #1-> convertTime 입력값 -> epoch: $epoch , offsetHour: $offsetHour")
+//        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        val cal = Calendar.getInstance(TimeZone.getDefault())
         cal.time = Date(epoch)
-        Log.d(TAG, "input(epoch): $epoch -> time(UTC): ${cal.time}")
+        Log.d(TAG, " #1-> input(epoch): $epoch -> InputDate: ${cal.time}")
+
+        val hour = offsetHour.toInt()
+        val minute: Float = offsetHour - hour
+        val newMinutes: Int = (minute * 60).toInt()
+        Log.d(TAG, "#1-> offset 시간 계산 -> ${hour}시간 & ${newMinutes}분[$minute]")
 
         cal.apply {
-            val year = get(Calendar.YEAR)
-            val month = get(Calendar.MONTH) + 1
-            val date = get(Calendar.DATE)
-            val dayOfWeek = get(Calendar.DAY_OF_WEEK).toDayOfWeek(lang)
-            val hour = get(Calendar.HOUR_OF_DAY)
-            val minute = get(Calendar.MINUTE)
-            val second = get(Calendar.SECOND)
-            set(Calendar.HOUR_OF_DAY, hour + offsetHour)
-            Log.d(TAG, " -> (offset:${offsetHour}hr): ${year}-${month}-${date} $dayOfWeek $hour:$minute:$second ")
+            val calMin = get(Calendar.MINUTE)
+            set(Calendar.MINUTE, calMin + newMinutes)
+            val calHour = get(Calendar.HOUR_OF_DAY)
+            set(Calendar.HOUR_OF_DAY, calHour + hour)
         }
+        with(cal) {
+            Log.d(TAG, "캘린더 직접 변환 TEST: ${get(Calendar.YEAR)}-${get(Calendar.MONTH) + 1}-${get(Calendar.DATE)} ${get(Calendar.DAY_OF_WEEK).toDayOfWeek(lang)} ${get(Calendar.HOUR_OF_DAY)}:${get(Calendar.MINUTE)}:${get(Calendar.SECOND)} ")
+        }
+
+        return cal
+    }
+
+    fun convertTime2(epoch: Long, offsetHour: Float, Lang: String = "en") : Calendar {
+        Log.v(TAG, " #2-> convertTime2 입력값 -> epoch: $epoch , offsetHour: $offsetHour")
+        Log.d(TAG, " #2-> input(epoch): $epoch -> InputDate: ${Date(epoch)}")
+        val hourAsMillis: Long = (offsetHour * 60 * 60 * 1000).toLong()
+        val stdEpoch = hourAsMillis + epoch
+        Log.v(TAG, " #2-> offsetHourInMillis : $hourAsMillis")
+
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        cal.time = Date(stdEpoch)
+        Log.d(TAG, "\n#2-> input(epoch+offset): $stdEpoch -> Date: ${cal.time}")
 
         return cal
     }
@@ -55,7 +77,7 @@ object TimeUtil {
             throw IllegalArgumentException("Illegal Argument for the day of week. It only accept an integer between 1 and 7.")
         }
         val index = this - 1
-        Log.d(TAG, " ---> toDayOfWeek Input: $this, lang: $lang")
+//        Log.d(TAG, " ---> toDayOfWeek Input: $this, lang: $lang")
         return when (lang.lowercase()) {
             "ko" -> { koDayOfWeek[index] }
             else -> { enDayOfWeek[index] }

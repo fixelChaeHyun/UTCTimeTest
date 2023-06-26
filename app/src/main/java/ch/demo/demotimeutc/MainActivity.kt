@@ -1,15 +1,15 @@
 package ch.demo.demotimeutc
 
 import android.app.DatePickerDialog
-import android.app.Dialog
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
-import android.widget.DatePicker
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import ch.demo.demotimeutc.TimeUtil.toDateFormat
 import ch.demo.demotimeutc.TimeUtil.toDayOfWeek
 import ch.demo.demotimeutc.databinding.ActivityMainBinding
-import org.intellij.lang.annotations.JdkConstants.CalendarMonth
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.time.ZoneOffset
@@ -21,47 +21,35 @@ class MainActivity : AppCompatActivity() {
 
     lateinit var binding: ActivityMainBinding
 
+    val spinnerItems: Array<Float> = arrayOf(6f, 7f, 8.5f, 8.75f, 9f, 10f, 10.5f, 12.75f, -3.5f, -6.0f -10.5f, -11f, -12f)
+
+    var selectOffset: Float = 9.0f
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        var tzAsia: TimeZone? = null
-        val date: Date = Date()
-        val df: DateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss E (z Z)")
-        tzAsia = TimeZone.getTimeZone("Asia/Seoul")
+        //----------- Spinner setup ----------
+        val spinnerAdapter = ArrayAdapter<Float>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, spinnerItems.asList())
+        binding.spinner.adapter = spinnerAdapter
+        binding.spinner.onItemSelectedListener = object: AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                Log.d(TAG, "- position: $position , item: ${spinnerItems[position]}")
+                selectOffset = spinnerItems[position]
+            }
 
-        df.timeZone = tzAsia
-        Log.d(TAG_TIME, " - ${tzAsia.displayName} :  ${df.format(date)} -> epoch: ${date.time}")
+            override fun onNothingSelected(parent: AdapterView<*>?) {
 
-        val tzUtc: TimeZone = TimeZone.getTimeZone(ZoneOffset.UTC)
-        val dfUtc: DateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss E (z Z)")
-        dfUtc.timeZone = tzUtc
-        Log.i(TAG_TIME, " -> ${tzUtc.displayName} : ${dfUtc.format(date)} -> epoch: ${date.time}")
+            }
+        }
 
-
-        val testDate: Long = date.time
-        Log.w(TAG_TIME, " \n-> InputEpoch: $testDate \n-> DateIns: ${Date(testDate)}\n-> TimeZoneUTC:   ${dfUtc.format(testDate)} \n-> TimeZoneAsia: ${df.format(testDate)}")
-
-        val test = 1687525095618
-        val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-        calendar.time = Date(test)       // 현재시간 -> 달력
-        val year = calendar.get(Calendar.YEAR)
-        val month = calendar.get(Calendar.MONTH) + 1
-        val day = calendar.get(Calendar.DATE)
-        val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK).toDayOfWeek("ko")
-        var hour = calendar.get(Calendar.HOUR_OF_DAY)
-        val mins = calendar.get(Calendar.MINUTE)
-        val sec = calendar.get(Calendar.SECOND)
-
-        Log.v("$TAG_TIME-Cal", " -> UTC:           ${year}년 ${month}월 ${day}일 ${dayOfWeek}요일 ${hour}시 ${mins}분 ${sec}초 -> calTime: ${calendar.timeInMillis}")
-        val add = 9
-        calendar.set(Calendar.HOUR_OF_DAY, hour + add)
-        hour = calendar.get(Calendar.HOUR_OF_DAY)
-        Log.d("$TAG_TIME-Cal", " -> 변환 후(+${add}hr) : ${year}년 ${month}월 ${day}일 ${dayOfWeek}요일 ${hour}시 ${mins}분 ${sec}초 -> calTime: ${calendar.timeInMillis}")
-
-        // -------------------------------------------
-
+        // ---------- Date Picker ----------
         var datePickerDialog: DatePickerDialog
         binding.button.setOnClickListener {
             val startCalendar = Calendar.getInstance()
@@ -74,6 +62,7 @@ class MainActivity : AppCompatActivity() {
                 { view, year, month, dayOfMonth ->
                     val selected = "$year - $month - $dayOfMonth"
                     val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                    cal.time = Date()
                     cal.apply {
                         set(Calendar.YEAR, year)
                         set(Calendar.MONTH, month)
@@ -81,30 +70,46 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val tzUtc: TimeZone = TimeZone.getTimeZone(ZoneOffset.UTC)
-                    val dfUtc: DateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss E")
-                    dfUtc.timeZone = tzUtc
+                    val dfUtc: DateFormat = SimpleDateFormat(TimeUtil.COMMON_DATE_FORMAT).apply { timeZone = tzUtc }    // SimpleDateFormat 에 timezone UTC 설정하기
                     val selectedEpoch = cal.time.time
-                    val log = "${tzUtc.displayName} : ${dfUtc.format(cal.time)} -> epoch: $selectedEpoch"
-                    Log.i(TAG_TIME, "DatePicker -> $log")
-
+                    val log = "${tzUtc.displayName} : ${dfUtc.format(cal.time)}\n ---> epoch: $selectedEpoch"
                     Log.d(TAG, "DatePicker -> $selected -> cal: ${cal.time} ")
 
-                    val offset = 10
-                    val convert = TimeUtil.convertTime(selectedEpoch, offset, "ko").toDateFormat()
-                    val convertEpoch = TimeUtil.convertTime(selectedEpoch, offset, "ko").time.time
-                    Log.e(TAG, "변환 후 -> $convert")
+                    val defaultDateFormat = SimpleDateFormat(TimeUtil.COMMON_DATE_FORMAT)
+                    val offset: Float = selectOffset
+                    // Test 1 # Calendar 의 Set 사용
 
-                    val epochMinus = convertEpoch-selectedEpoch
+                    val convertCal = TimeUtil.convertTime(selectedEpoch, offset, "ko")
+                    val convertDateFormat = convertCal.toDateFormat()
+                    val convertEpoch = convertCal.time.time
+                    Log.e(TAG, "변환 후(#1) -> $convertDateFormat")
+                    Log.d(TAG, " 변환 후(#1) epoch -> $convertEpoch")
+                    Log.d(TAG, " 변환 후(#1) defaultDateFormat -> ${defaultDateFormat.format(convertCal.time)}")
+
+                    Log.i(TAG, "\n --------------------------------------------------------------------- \n")
+
+                    // Test 2 # epoch Long 으로 더해서 사용
+                    val convertCal2 = TimeUtil.convertTime2(selectedEpoch, offset, "ko")
+                    val convertDateFormat2 = convertCal2.toDateFormat()
+                    val convertEpoch2 = convertCal2.time.time
+                    Log.w(TAG, " 변환 후(#2) -> $convertDateFormat2")
+                    Log.d(TAG, " 변환 후(#2) epoch -> $convertEpoch2")
+                    Log.d(TAG, " 변환 후(#2) defaultDateFormat -> ${defaultDateFormat.format(convertCal2.time)}")
+
+                    val epochMinus = convertEpoch2-selectedEpoch
+                    val offsetMillis: Int = (offset * 60 * 60 * 1000).toInt()
+                    val log2 = "[offset: ${offset}Hr] == $offsetMillis ms\n" +
+                            " ---> ${convertDateFormat2}\n" +
+                            " ---> epoch: $selectedEpoch\n" +
+                            " ---> epochMinus : $epochMinus\n" +
+                            " -> ${defaultDateFormat.format(convertCal2.time)}"
 
                     val strBuilder = StringBuilder()
-                    strBuilder.append("Epoch : (00:00:00 UTC on January 1, 1970) 부터의 시간\n\n")
                     strBuilder.append("선택값: \n")
-                    strBuilder.append("$log\n\n\n")
-                    strBuilder.append("변환후: \n")
-                    strBuilder.append("[offset:$offset] $convert -> epoch: $convertEpoch \n")
-                    strBuilder.append("Epoch1: $selectedEpoch \n")
-                    strBuilder.append("Epoch2: $convertEpoch \n")
-                    strBuilder.append("${epochMinus}ms (${epochMinus / 1000 / 60 / 60}hour)")
+                    strBuilder.append("$log\n")
+                    strBuilder.append("\n\n  -----------------------------------  \n\n")
+                    strBuilder.append("변환 후: \n\n")
+                    strBuilder.append("$log2")
 
                     binding.textView.text = strBuilder.toString()
                 }, year, month, day
